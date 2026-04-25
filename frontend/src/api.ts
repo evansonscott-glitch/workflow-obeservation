@@ -35,6 +35,25 @@ export const api = {
     }),
   gmailSample: () =>
     json<{ connected: boolean; subjects: string[] }>("/api/gmail/sample"),
+  uploadGmailCredentials: (content: string) =>
+    json<{ ok: boolean }>("/api/gmail/credentials", {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }),
+  startGmailConnect: () =>
+    json<{ ok: boolean }>("/api/gmail/connect", { method: "POST" }),
+  gmailConnectStatus: () =>
+    json<GmailConnectStatus>("/api/gmail/connect/status"),
+  gmailDisconnect: () =>
+    json<{ ok: boolean }>("/api/gmail/disconnect", { method: "POST" }),
   completeOnboarding: () =>
     json<{ ok: boolean }>("/api/onboarding/complete", { method: "POST" }),
+};
+
+export type GmailConnectStatus = {
+  connected: boolean;
+  has_credentials: boolean;
+  running: boolean;
+  error: string | null;
+  email: string | null;
 };

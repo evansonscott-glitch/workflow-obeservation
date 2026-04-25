@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, Status } from "../api";
+import { useEffect, useState } from "react";
+import { api, GmailConnectStatus, Status } from "../api";
 
 type Props = { status: Status; onUpdate: (s: Status) => void };
 
@@ -37,12 +37,7 @@ export default function Wizard({ status, onUpdate }: Props) {
         />
       )}
       {step === 3 && <Extension onNext={() => setStep(4)} />}
-      {step === 4 && (
-        <Gmail
-          connected={status.gmail_connected}
-          onNext={() => setStep(5)}
-        />
-      )}
+      {step === 4 && <Gmail onNext={() => setStep(5)} />}
       {step === 5 && (
         <TestCapture
           onFinish={async () => {
@@ -198,29 +193,112 @@ function Extension({ onNext }: { onNext: () => void }) {
   );
 }
 
-function Gmail({ connected, onNext }: { connected: boolean; onNext: () => void }) {
+function Gmail({ onNext }: { onNext: () => void }) {
+  const [credsText, setCredsText] = useState("");
+  const [status, setStatus] = useState<GmailConnectStatus | null>(null);
   const [subjects, setSubjects] = useState<string[] | null>(null);
+  const [uploadErr, setUploadErr] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const tick = async () => {
+      try {
+        const s = await api.gmailConnectStatus();
+        if (active) setStatus(s);
+      } catch {}
+    };
+    tick();
+    const id = setInterval(tick, 1500);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  const upload = async () => {
+    setUploadErr("");
+    try {
+      await api.uploadGmailCredentials(credsText);
+      setCredsText("");
+    } catch (e) {
+      setUploadErr(String(e));
+    }
+  };
+
+  const connect = async () => {
+    setSubjects(null);
+    await api.startGmailConnect();
+  };
+
   const verify = async () => {
     const r = await api.gmailSample();
     setSubjects(r.subjects);
   };
+
+  const hasCreds = status?.has_credentials;
+  const connected = status?.connected;
+  const running = status?.running;
+
   return (
     <StepCard
       title="Connect Gmail"
       body={
         <>
           <p>
-            Run the OAuth flow (TODO: wire `/api/gmail/connect`). Once
-            connected, click verify to see your last few subjects.
+            You'll need a Google Cloud OAuth client (Desktop app type) with the
+            Gmail API enabled. Paste the contents of <code>credentials.json</code> here.
           </p>
-          {connected ? (
-            <p className="check">✔ Gmail connected.</p>
+          <ol style={{ fontSize: 13, color: "#8a92a6", lineHeight: 1.6 }}>
+            <li>Go to console.cloud.google.com → APIs & Services → Credentials</li>
+            <li>Create OAuth client ID → Application type: <strong>Desktop app</strong></li>
+            <li>Enable the Gmail API (APIs & Services → Library)</li>
+            <li>Add your email as a test user (OAuth consent screen)</li>
+            <li>Download the JSON and paste it below</li>
+          </ol>
+
+          {!hasCreds ? (
+            <>
+              <textarea
+                rows={4}
+                placeholder='{"installed": {"client_id": "...", ...}}'
+                value={credsText}
+                onChange={(e) => setCredsText(e.target.value)}
+                style={{
+                  width: "100%",
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: 12,
+                  background: "#0f1115",
+                  color: "#e6e8eb",
+                  border: "1px solid #232634",
+                  borderRadius: 6,
+                  padding: 8,
+                  marginTop: 8,
+                }}
+              />
+              {uploadErr && <p className="err">{uploadErr}</p>}
+              <button
+                onClick={upload}
+                disabled={!credsText.trim()}
+                style={{ marginTop: 8 }}
+              >
+                Save credentials
+              </button>
+            </>
+          ) : connected ? (
+            <p className="check">✔ Connected as {status?.email || "(unknown)"}</p>
+          ) : running ? (
+            <p className="warn">
+              Browser window opened — grant access in Google to continue…
+            </p>
+          ) : status?.error ? (
+            <p className="err">✘ {status.error}</p>
           ) : (
-            <p className="warn">Not connected yet.</p>
+            <p>Credentials saved. Click <strong>Connect Gmail</strong>.</p>
           )}
+
           {subjects && (
             <ul>
-              {subjects.length === 0 && <li>(no messages or not connected)</li>}
+              {subjects.length === 0 && <li>(no messages found)</li>}
               {subjects.map((s, i) => (
                 <li key={i}>{s}</li>
               ))}
@@ -228,8 +306,14 @@ function Gmail({ connected, onNext }: { connected: boolean; onNext: () => void }
           )}
         </>
       }
-      primary={{ label: "Next", onClick: onNext }}
-      secondary={{ label: "Verify", onClick: verify }}
+      primary={
+        connected
+          ? { label: "Next", onClick: onNext }
+          : hasCreds
+            ? { label: running ? "Waiting…" : "Connect Gmail", onClick: connect, disabled: running }
+            : { label: "Next", onClick: onNext, disabled: true }
+      }
+      secondary={connected ? { label: "Verify", onClick: verify } : undefined}
     />
   );
 }

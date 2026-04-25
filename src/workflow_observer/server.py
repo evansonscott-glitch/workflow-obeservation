@@ -81,6 +81,33 @@ def create_app() -> FastAPI:
     def gmail_sample() -> dict:
         return {"connected": gmail_obs.is_connected(), "subjects": gmail_obs.sample_recent_subjects()}
 
+    class GmailCredentials(BaseModel):
+        content: str
+
+    @app.post("/api/gmail/credentials")
+    def gmail_upload_credentials(body: GmailCredentials) -> dict:
+        try:
+            gmail_obs.save_credentials_json(body.content)
+        except Exception as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True}
+
+    @app.post("/api/gmail/connect")
+    def gmail_connect() -> dict:
+        if not gmail_obs.has_credentials():
+            raise HTTPException(400, "Upload credentials.json first.")
+        gmail_obs.start_oauth()
+        return {"ok": True}
+
+    @app.get("/api/gmail/connect/status")
+    def gmail_connect_status() -> dict:
+        return gmail_obs.connect_status()
+
+    @app.post("/api/gmail/disconnect")
+    def gmail_disconnect() -> dict:
+        gmail_obs.disconnect()
+        return {"ok": True}
+
     dist = find_frontend_dist()
     if dist:
         app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
