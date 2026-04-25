@@ -82,6 +82,12 @@ export const api = {
     }),
   deleteAgent: (id: number) =>
     json<{ ok: boolean }>(`/api/agents/${id}`, { method: "DELETE" }),
+  exportToDir: () =>
+    json<{ path: string; agents: string[]; files: string[] }>("/api/export", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  exportZipUrl: () => "/api/export.zip",
 };
 
 export type AgentMode = "shadow" | "supervised" | "autonomous";

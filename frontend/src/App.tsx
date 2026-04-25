@@ -131,11 +131,62 @@ function Dashboard({ status }: { status: Status | null }) {
         )}
       </div>
 
-      <div className="step-card">
+      <div className="step-card" style={{ marginBottom: 16 }}>
         <h2>Agents</h2>
         <AgentList key={agentsRefreshKey} />
       </div>
+
+      <div className="step-card">
+        <h2>Export to Claude Code</h2>
+        <ExportSection />
+      </div>
     </div>
+  );
+}
+
+function ExportSection() {
+  const [exported, setExported] = useState<{ path: string; files: string[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const exportDir = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await api.exportToDir();
+      setExported(r);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <p>
+        Bundle saved agents into a folder you can drop into any Claude Code
+        project. Includes agent files, MCP server stubs, and a runbook.
+      </p>
+      <div className="row">
+        <button onClick={exportDir} disabled={busy}>
+          {busy ? "Exporting…" : "Export to disk"}
+        </button>
+        <a href={api.exportZipUrl()} download>
+          <button className="secondary">Download zip</button>
+        </a>
+      </div>
+      {err && <p className="err">{err}</p>}
+      {exported && (
+        <div style={{ marginTop: 12, fontSize: 13 }}>
+          <p className="check">✔ Exported to:</p>
+          <code style={{ wordBreak: "break-all" }}>{exported.path}</code>
+          <p style={{ color: "#8a92a6", marginTop: 8 }}>
+            Files: {exported.files.join(", ")}
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 

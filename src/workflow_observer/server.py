@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__
+from . import __version__, packager
 from .analysis import agent_designer, segmenter
 from .observers import browser as browser_obs
 from .observers import gmail as gmail_obs
@@ -192,6 +192,36 @@ def create_app() -> FastAPI:
     def agents_delete(agent_id: int) -> dict:
         agent_designer.delete_agent(agent_id)
         return {"ok": True}
+
+    class ExportBody(BaseModel):
+        agent_ids: Optional[list[int]] = None
+        dest: Optional[str] = None
+
+    @app.post("/api/export")
+    def export_to_dir(body: ExportBody) -> dict:
+        dest = Path(body.dest).expanduser() if body.dest else packager.default_export_dir()
+        try:
+            return packager.package_to_dir(dest, body.agent_ids)
+        except RuntimeError as e:
+            raise HTTPException(400, str(e))
+
+    @app.get("/api/export.zip")
+    def export_zip(agent_ids: Optional[str] = None) -> Response:
+        ids: Optional[list[int]] = None
+        if agent_ids:
+            try:
+                ids = [int(x) for x in agent_ids.split(",") if x.strip()]
+            except ValueError:
+                raise HTTPException(400, "agent_ids must be comma-separated integers")
+        try:
+            blob = packager.package_to_zip(ids)
+        except RuntimeError as e:
+            raise HTTPException(400, str(e))
+        return Response(
+            content=blob,
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="agents-export.zip"'},
+        )
 
     dist = find_frontend_dist()
     if dist:
