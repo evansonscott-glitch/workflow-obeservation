@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import __version__
-from .analysis import segmenter
+from .analysis import agent_designer, segmenter
 from .observers import browser as browser_obs
 from .observers import gmail as gmail_obs
 from .observers import ocr as ocr_obs
@@ -141,6 +141,56 @@ def create_app() -> FastAPI:
     @app.post("/api/workflows/{wid}/flag")
     def workflow_flag(wid: int, body: FlagBody) -> dict:
         segmenter.set_flag(wid, body.flagged)
+        return {"ok": True}
+
+    class DesignBody(BaseModel):
+        workflow_id: int
+
+    @app.post("/api/agents/design")
+    async def agents_design(body: DesignBody) -> dict:
+        try:
+            return await asyncio.to_thread(agent_designer.design_agent, body.workflow_id)
+        except Exception as e:
+            raise HTTPException(500, str(e))
+
+    class AgentBody(BaseModel):
+        spec: dict
+
+    @app.post("/api/agents")
+    def agents_create(body: AgentBody) -> dict:
+        agent_id = agent_designer.save_agent(body.spec)
+        return {"id": agent_id}
+
+    @app.get("/api/agents")
+    def agents_list() -> list[dict]:
+        return agent_designer.list_agents()
+
+    @app.get("/api/agents/{agent_id}")
+    def agents_get(agent_id: int) -> dict:
+        agent = agent_designer.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(404, "Agent not found")
+        return agent
+
+    @app.put("/api/agents/{agent_id}")
+    def agents_update(agent_id: int, body: AgentBody) -> dict:
+        agent_designer.update_agent(agent_id, body.spec)
+        return {"ok": True}
+
+    class ModeBody(BaseModel):
+        mode: str
+
+    @app.post("/api/agents/{agent_id}/mode")
+    def agents_mode(agent_id: int, body: ModeBody) -> dict:
+        try:
+            agent_designer.set_mode(agent_id, body.mode)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return {"ok": True}
+
+    @app.delete("/api/agents/{agent_id}")
+    def agents_delete(agent_id: int) -> dict:
+        agent_designer.delete_agent(agent_id)
         return {"ok": True}
 
     dist = find_frontend_dist()

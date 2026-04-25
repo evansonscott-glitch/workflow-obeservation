@@ -59,6 +59,60 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ flagged }),
     }),
+  designAgent: (workflowId: number) =>
+    json<AgentSpec>("/api/agents/design", {
+      method: "POST",
+      body: JSON.stringify({ workflow_id: workflowId }),
+    }),
+  saveAgent: (spec: AgentSpec) =>
+    json<{ id: number }>("/api/agents", {
+      method: "POST",
+      body: JSON.stringify({ spec }),
+    }),
+  listAgents: () => json<Agent[]>("/api/agents"),
+  updateAgent: (id: number, spec: AgentSpec) =>
+    json<{ ok: boolean }>(`/api/agents/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ spec }),
+    }),
+  setAgentMode: (id: number, mode: AgentMode) =>
+    json<{ ok: boolean }>(`/api/agents/${id}/mode`, {
+      method: "POST",
+      body: JSON.stringify({ mode }),
+    }),
+  deleteAgent: (id: number) =>
+    json<{ ok: boolean }>(`/api/agents/${id}`, { method: "DELETE" }),
+};
+
+export type AgentMode = "shadow" | "supervised" | "autonomous";
+
+export type AgentImprovement = {
+  observed: string;
+  agent_approach: string;
+  why_better: string;
+};
+
+export type AgentSpec = {
+  name: string;
+  display_name?: string;
+  description?: string;
+  model?: "haiku" | "sonnet" | "opus";
+  system_prompt?: string;
+  tools?: string[];
+  mcp_servers?: { name: string; purpose: string }[];
+  trigger?: string;
+  improvements?: AgentImprovement[];
+  escalation?: string[];
+  default_mode?: AgentMode;
+  source_workflow_id?: number;
+};
+
+export type Agent = {
+  id: number;
+  created: number;
+  name: string;
+  mode: AgentMode;
+  spec: AgentSpec;
 };
 
 export type WorkflowSpec = {

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { api, RecentEvent, Status, Workflow } from "./api";
+import { AgentSpec, api, RecentEvent, Status, Workflow } from "./api";
+import AgentEditor from "./components/AgentEditor";
+import AgentList from "./components/AgentList";
 import Wizard from "./components/Wizard";
 
 export default function App() {
@@ -54,6 +56,7 @@ function Dashboard({ status }: { status: Status | null }) {
   const [hoursBack, setHoursBack] = useState(4);
   const [running, setRunning] = useState(false);
   const [err, setErr] = useState("");
+  const [agentsRefreshKey, setAgentsRefreshKey] = useState(0);
 
   const refresh = async () => {
     try {
@@ -112,38 +115,85 @@ function Dashboard({ status }: { status: Status | null }) {
         {err && <p className="err">{err}</p>}
       </div>
 
-      <div className="step-card">
+      <div className="step-card" style={{ marginBottom: 16 }}>
         <h2>Workflows</h2>
         {workflows.length === 0 ? (
           <p style={{ color: "#8a92a6" }}>No workflows yet. Run a segmentation pass.</p>
         ) : (
           workflows.map((w) => (
-            <WorkflowRow key={w.id} w={w} onToggle={() => toggleFlag(w)} />
+            <WorkflowRow
+              key={w.id}
+              w={w}
+              onToggle={() => toggleFlag(w)}
+              onAgentSaved={() => setAgentsRefreshKey((k) => k + 1)}
+            />
           ))
         )}
+      </div>
+
+      <div className="step-card">
+        <h2>Agents</h2>
+        <AgentList key={agentsRefreshKey} />
       </div>
     </div>
   );
 }
 
-function WorkflowRow({ w, onToggle }: { w: Workflow; onToggle: () => void }) {
+function WorkflowRow({
+  w,
+  onToggle,
+  onAgentSaved,
+}: {
+  w: Workflow;
+  onToggle: () => void;
+  onAgentSaved: () => void;
+}) {
   const r = w.raw;
+  const [designing, setDesigning] = useState(false);
+  const [draft, setDraft] = useState<AgentSpec | null>(null);
+  const [err, setErr] = useState("");
+
+  const startDesign = async () => {
+    setDesigning(true);
+    setErr("");
+    try {
+      const spec = await api.designAgent(w.id);
+      setDraft(spec);
+    } catch (e) {
+      setErr(String(e));
+      setDesigning(false);
+    }
+  };
+
+  const save = async (spec: AgentSpec) => {
+    await api.saveAgent(spec);
+    setDraft(null);
+    setDesigning(false);
+    onAgentSaved();
+  };
+
   return (
-    <div
-      style={{
-        padding: "12px 0",
-        borderBottom: "1px dashed #232634",
-      }}
-    >
+    <div style={{ padding: "12px 0", borderBottom: "1px dashed #232634" }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <strong>{w.name}</strong>
-        <button
-          className="secondary"
-          onClick={onToggle}
-          style={{ padding: "4px 10px", fontSize: 12 }}
-        >
-          {w.flagged_for_agent ? "★ Flagged" : "☆ Flag for agent"}
-        </button>
+        <div className="row">
+          {w.flagged_for_agent && !draft && (
+            <button
+              onClick={startDesign}
+              disabled={designing}
+              style={{ padding: "4px 10px", fontSize: 12 }}
+            >
+              {designing ? "Designing…" : "Design agent"}
+            </button>
+          )}
+          <button
+            className="secondary"
+            onClick={onToggle}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            {w.flagged_for_agent ? "★ Flagged" : "☆ Flag for agent"}
+          </button>
+        </div>
       </div>
       {w.description && <p style={{ margin: "6px 0", color: "#b8bdc9" }}>{w.description}</p>}
       <div style={{ fontSize: 12, color: "#8a92a6" }}>
@@ -151,6 +201,19 @@ function WorkflowRow({ w, onToggle }: { w: Workflow; onToggle: () => void }) {
         {r?.judgment_level && <> · judgment: {r.judgment_level}</>}
         {r?.automation_potential && <> · automation: {r.automation_potential}</>}
       </div>
+      {err && <p className="err">{err}</p>}
+      {draft && (
+        <div style={{ marginTop: 12 }}>
+          <AgentEditor
+            initial={draft}
+            onSave={save}
+            onCancel={() => {
+              setDraft(null);
+              setDesigning(false);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

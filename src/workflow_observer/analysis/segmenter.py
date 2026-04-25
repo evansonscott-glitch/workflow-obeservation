@@ -4,11 +4,11 @@ The model receives a compact human-readable timeline (not raw JSON) so the
 prompt is dense and tokens are spent on signal, not bookkeeping.
 """
 import json
-import os
 import time
 from typing import Optional
 
-from ..storage import connect, load_settings
+from ..storage import connect
+from ._common import resolve_api_key, strip_fences
 
 MODEL = "claude-sonnet-4-6"
 MAX_OCR_SNIPPET = 200
@@ -46,25 +46,8 @@ def _format_event(ts: float, source: str, kind: str, payload: dict) -> str:
     return f"[{t}] {source}/{kind}: {json.dumps(payload)[:200]}"
 
 
-def _resolve_api_key(api_key: Optional[str]) -> str:
-    key = api_key or load_settings().get("claude_api_key") or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        raise RuntimeError("Claude API key not configured. Set it during onboarding or via ANTHROPIC_API_KEY.")
-    return key
-
-
-def _strip_fences(text: str) -> str:
-    text = text.strip()
-    if not text.startswith("```"):
-        return text
-    text = text.lstrip("`")
-    if "\n" in text:
-        text = text.split("\n", 1)[1]
-    return text.rsplit("```", 1)[0].strip()
-
-
 def segment_window(start_ts: float, end_ts: float, api_key: Optional[str] = None) -> dict:
-    key = _resolve_api_key(api_key)
+    key = resolve_api_key(api_key)
 
     with connect() as c:
         rows = c.execute(
@@ -90,9 +73,8 @@ def segment_window(start_ts: float, end_ts: float, api_key: Optional[str] = None
     )
 
     raw = "".join(getattr(b, "text", "") for b in msg.content)
-    stripped = _strip_fences(raw)
     try:
-        parsed = json.loads(stripped)
+        parsed = json.loads(strip_fences(raw))
     except json.JSONDecodeError as e:
         raise RuntimeError(f"Claude did not return valid JSON: {e}\n--- raw ---\n{raw[:1000]}")
 
