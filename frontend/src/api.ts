@@ -48,6 +48,39 @@ export const api = {
     json<{ ok: boolean }>("/api/gmail/disconnect", { method: "POST" }),
   completeOnboarding: () =>
     json<{ ok: boolean }>("/api/onboarding/complete", { method: "POST" }),
+  segment: (hoursBack: number) =>
+    json<{ workflows: WorkflowSpec[]; event_count: number; saved_ids: number[] }>(
+      "/api/segment",
+      { method: "POST", body: JSON.stringify({ hours_back: hoursBack }) }
+    ),
+  listWorkflows: () => json<Workflow[]>("/api/workflows"),
+  flagWorkflow: (id: number, flagged: boolean) =>
+    json<{ ok: boolean }>(`/api/workflows/${id}/flag`, {
+      method: "POST",
+      body: JSON.stringify({ flagged }),
+    }),
+};
+
+export type WorkflowSpec = {
+  name: string;
+  description?: string;
+  start_ts?: number;
+  end_ts?: number;
+  systems_touched?: string[];
+  judgment_level?: "low" | "medium" | "high";
+  automation_potential?: "low" | "medium" | "high";
+  notes?: string;
+};
+
+export type Workflow = {
+  id: number;
+  created: number;
+  name: string;
+  description: string | null;
+  start_ts: number | null;
+  end_ts: number | null;
+  flagged_for_agent: boolean;
+  raw: WorkflowSpec | null;
 };
 
 export type GmailConnectStatus = {

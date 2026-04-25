@@ -1,6 +1,8 @@
 import asyncio
 import sys
+import time
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -8,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import __version__
+from .analysis import segmenter
 from .observers import browser as browser_obs
 from .observers import gmail as gmail_obs
 from .observers import ocr as ocr_obs
@@ -107,6 +110,37 @@ def create_app() -> FastAPI:
     @app.post("/api/gmail/disconnect")
     def gmail_disconnect() -> dict:
         gmail_obs.disconnect()
+        return {"ok": True}
+
+    class SegmentBody(BaseModel):
+        start_ts: Optional[float] = None
+        end_ts: Optional[float] = None
+        hours_back: Optional[float] = None
+
+    @app.post("/api/segment")
+    async def segment(body: SegmentBody) -> dict:
+        end = body.end_ts or time.time()
+        if body.start_ts is not None:
+            start = body.start_ts
+        elif body.hours_back is not None:
+            start = end - body.hours_back * 3600
+        else:
+            start = end - 4 * 3600
+        try:
+            return await asyncio.to_thread(segmenter.segment_window, start, end)
+        except Exception as e:
+            raise HTTPException(500, str(e))
+
+    @app.get("/api/workflows")
+    def workflows_list(limit: int = 50) -> list[dict]:
+        return segmenter.list_workflows(limit)
+
+    class FlagBody(BaseModel):
+        flagged: bool
+
+    @app.post("/api/workflows/{wid}/flag")
+    def workflow_flag(wid: int, body: FlagBody) -> dict:
+        segmenter.set_flag(wid, body.flagged)
         return {"ok": True}
 
     dist = find_frontend_dist()
