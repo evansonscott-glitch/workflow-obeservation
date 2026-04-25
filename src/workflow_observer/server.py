@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from . import __version__
 from .observers import browser as browser_obs
 from .observers import gmail as gmail_obs
+from .observers import ocr as ocr_obs
 from .observers import window as window_obs
 from .storage import init_db, load_settings, recent_events, save_settings
 
@@ -126,5 +127,6 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def _start_observers() -> None:
         asyncio.create_task(window_obs.sample_loop())
+        asyncio.create_task(ocr_obs.sample_loop())
 
     return app
