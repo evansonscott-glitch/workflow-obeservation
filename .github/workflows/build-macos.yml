@@ -1,0 +1,64 @@
+name: build-macos
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build
+
+      - name: Install Python deps
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Build .app with py2app
+        run: |
+          source .venv/bin/activate
+          python setup.py py2app
+
+      - name: Ad-hoc sign the bundle
+        run: codesign --force --deep --sign - dist/WorkflowObserver.app
+
+      - name: Create DMG
+        run: |
+          mkdir -p dist/dmg-staging
+          cp -R dist/WorkflowObserver.app dist/dmg-staging/
+          ln -s /Applications dist/dmg-staging/Applications
+          hdiutil create -volname "Workflow Observer" \
+            -srcfolder dist/dmg-staging \
+            -ov -format UDZO dist/WorkflowObserver.dmg
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorkflowObserver-dmg
+          path: dist/WorkflowObserver.dmg
+          if-no-files-found: error
+
+      - name: Attach to release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/WorkflowObserver.dmg

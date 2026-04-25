@@ -19,10 +19,11 @@ from .storage import init_db, load_settings, recent_events, save_settings
 
 
 def find_frontend_dist() -> Path | None:
-    candidates = [
-        Path(__file__).resolve().parent.parent.parent / "frontend" / "dist",
-        Path(__file__).resolve().parent.parent.parent.parent / "frontend_dist",
-    ]
+    candidates: list[Path] = []
+    if getattr(sys, "frozen", False):
+        bundle_resources = Path(sys.executable).resolve().parent.parent / "Resources"
+        candidates.append(bundle_resources / "frontend" / "dist")
+    candidates.append(Path(__file__).resolve().parent.parent.parent / "frontend" / "dist")
     for c in candidates:
         if c.exists() and (c / "index.html").exists():
             return c
