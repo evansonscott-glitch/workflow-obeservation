@@ -38,28 +38,45 @@ jobs:
         run: |
           source .venv/bin/activate
           python setup.py py2app
+          echo "--- contents of dist/ ---"
+          ls -la dist/
+
+      - name: Locate built bundle
+        id: bundle
+        run: |
+          APP=$(ls -d dist/*.app 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then
+            echo "No .app bundle found in dist/" >&2
+            ls -la dist/ || true
+            exit 1
+          fi
+          echo "app_path=$APP" >> "$GITHUB_OUTPUT"
+          echo "app_name=$(basename "$APP" .app)" >> "$GITHUB_OUTPUT"
+          echo "Found: $APP"
 
       - name: Ad-hoc sign the bundle
-        run: codesign --force --deep --sign - dist/WorkflowObserver.app
+        run: codesign --force --deep --sign - "${{ steps.bundle.outputs.app_path }}"
 
       - name: Create DMG
         run: |
+          APP_PATH="${{ steps.bundle.outputs.app_path }}"
+          APP_NAME="${{ steps.bundle.outputs.app_name }}"
           mkdir -p dist/dmg-staging
-          cp -R dist/WorkflowObserver.app dist/dmg-staging/
+          cp -R "$APP_PATH" dist/dmg-staging/
           ln -s /Applications dist/dmg-staging/Applications
-          hdiutil create -volname "Workflow Observer" \
+          hdiutil create -volname "$APP_NAME" \
             -srcfolder dist/dmg-staging \
-            -ov -format UDZO dist/WorkflowObserver.dmg
+            -ov -format UDZO "dist/${APP_NAME}.dmg"
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: WorkflowObserver-dmg
-          path: dist/WorkflowObserver.dmg
+          path: dist/*.dmg
           if-no-files-found: error
 
       - name: Attach to release (tag builds only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/WorkflowObserver.dmg
+          files: dist/*.dmg

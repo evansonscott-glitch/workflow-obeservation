@@ -59,11 +59,14 @@ pip install --quiet -e .
 echo "==> running py2app"
 python setup.py py2app
 
-APP="dist/WorkflowObserver.app"
-if [[ ! -d "$APP" ]]; then
-  echo "py2app did not produce $APP" >&2
+APP=$(ls -d dist/*.app 2>/dev/null | head -1)
+if [[ -z "$APP" ]]; then
+  echo "py2app did not produce a .app bundle in dist/" >&2
+  ls -la dist/ || true
   exit 1
 fi
+APP_NAME=$(basename "$APP" .app)
+echo "==> built $APP"
 
 echo "==> ad-hoc signing the bundle"
 codesign --force --deep --sign - "$APP"
@@ -75,9 +78,9 @@ mkdir -p "$STAGING"
 cp -R "$APP" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
-DMG="dist/WorkflowObserver.dmg"
+DMG="dist/${APP_NAME}.dmg"
 rm -f "$DMG"
-hdiutil create -volname "Workflow Observer" -srcfolder "$STAGING" -ov -format UDZO "$DMG" >/dev/null
+hdiutil create -volname "$APP_NAME" -srcfolder "$STAGING" -ov -format UDZO "$DMG" >/dev/null
 
 rm -rf "$STAGING"
 
