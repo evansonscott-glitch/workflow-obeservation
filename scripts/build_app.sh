@@ -53,9 +53,8 @@ fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 pip install --quiet --upgrade pip
-# py2app needs an older setuptools that still supports its build hooks
-pip install --quiet "setuptools<70" wheel
-pip install --quiet -e ".[dev]"
+pip install --quiet -r requirements.txt
+pip install --quiet -e .
 
 echo "==> running py2app"
 python setup.py py2app

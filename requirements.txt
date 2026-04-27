@@ -1,0 +1,17 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+websockets>=13
+httpx>=0.27
+anthropic>=0.39
+google-auth>=2.35
+google-auth-oauthlib>=1.2
+google-api-python-client>=2.150
+pydantic>=2.9
+rumps>=0.4.0; sys_platform == 'darwin'
+pyobjc-framework-Cocoa>=10.3; sys_platform == 'darwin'
+pyobjc-framework-Quartz>=10.3; sys_platform == 'darwin'
+pyobjc-framework-Vision>=10.3; sys_platform == 'darwin'
+pyobjc-framework-ApplicationServices>=10.3; sys_platform == 'darwin'
+py2app>=0.28; sys_platform == 'darwin'
+pytest>=8.3
+ruff>=0.7
