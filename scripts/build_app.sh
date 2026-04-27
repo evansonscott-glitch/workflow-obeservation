@@ -10,10 +10,23 @@ if [[ "$(uname)" != "Darwin" ]]; then
   exit 1
 fi
 
-PY="${PY:-python3.11}"
-if ! command -v "$PY" >/dev/null 2>&1; then
-  PY="python3"
+PY="${PY:-}"
+if [[ -z "$PY" ]]; then
+  for candidate in python3.13 python3.12 python3.11; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      PY="$candidate"
+      break
+    fi
+  done
 fi
+
+if [[ -z "$PY" ]] || ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+  echo "ERROR: need Python 3.11 or newer." >&2
+  echo "Install from https://www.python.org/downloads/ then re-run." >&2
+  exit 1
+fi
+
+echo "==> using $PY ($("$PY" --version))"
 
 echo "==> cleaning previous build"
 rm -rf build dist
@@ -27,6 +40,10 @@ npm run build
 popd >/dev/null
 
 echo "==> setting up venv"
+if [[ -d .venv ]] && ! .venv/bin/python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+  echo "    existing .venv uses an incompatible Python — recreating"
+  rm -rf .venv
+fi
 if [[ ! -d .venv ]]; then
   "$PY" -m venv .venv
 fi
